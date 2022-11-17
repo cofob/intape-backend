@@ -1,0 +1,143 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: python:bullseye
+
+    services:
+      database:
+        image: postgres:alpine
+        env:
+          POSTGRES_PASSWORD: "password"
+          POSTGRES_USER: "user"
+          POSTGRES_DB: "db"
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 5
+      ipfs:
+        image: ipfs/kubo
+        options: >-
+          --health-cmd true
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 5
+      cluster:
+        image: ipfs/ipfs-cluster
+        env:
+          CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs/tcp/5001
+          CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install make sudo gcc -y --no-install-recommends
+          sudo -H pip install virtualenv
+
+      - name: Cache req.txt
+        uses: actions/cache@v3
+        id: cache-reqs
+        with:
+          path: req.txt
+          key: ${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+
+      - name: Check file existence
+        uses: andstor/file-existence-action@v2
+        id: check_files
+        with:
+          files: "req.txt"
+
+      - name: Export poetry dependencies
+        if: steps.check_files.outputs.files_exists != 'true'
+        run: |
+          apt-get install curl -y --no-install-recommends
+          curl -sSL "https://install.python-poetry.org" | python
+          /github/home/.local/bin/poetry export -o req.txt --without-hashes --with dev
+
+      - name: Cache venv
+        uses: actions/cache@v3
+        id: cache-deps
+        with:
+          path: "venv"
+          key: ${{ runner.os }}-${{ hashFiles('req.txt') }}
+
+      - name: Check venv existence
+        uses: andstor/file-existence-action@v2
+        id: check_venv_files
+        with:
+          files: "venv/bin/activate"
+
+      - name: Create virtualenv
+        if: steps.check_venv_files.outputs.files_exists != 'true'
+        run: |
+          virtualenv venv
+          . venv/bin/activate
+          pip install -r req.txt
+
+      - name: Cache mypy
+        uses: actions/cache@v3
+        id: cache-mypy
+        with:
+          path: ".mypy_cache"
+          key: ${{ runner.os }}-mypy-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mypy-
+
+      - name: Run checks
+        run: |
+          . venv/bin/activate
+          set -x
+
+          python -m intape db migrate
+
+          echo '# Job summary' >> $GITHUB_STEP_SUMMARY
+
+
+          echo '## Linting' >> $GITHUB_STEP_SUMMARY
+
+          echo 'Flake8:' >> $GITHUB_STEP_SUMMARY
+          echo '```python' >> $GITHUB_STEP_SUMMARY
+          flake8 . >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          echo 'Black:' >> $GITHUB_STEP_SUMMARY
+          echo '```python' >> $GITHUB_STEP_SUMMARY
+          black . --check --diff >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          echo 'Isort:' >> $GITHUB_STEP_SUMMARY
+          echo '```python' >> $GITHUB_STEP_SUMMARY
+          isort . -c --diff >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+
+          echo '## Type checking' >> $GITHUB_STEP_SUMMARY
+
+          echo 'Mypy:' >> $GITHUB_STEP_SUMMARY
+          echo '```python' >> $GITHUB_STEP_SUMMARY
+          mypy --install-types --non-interactive . >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+
+          echo '## Testing' >> $GITHUB_STEP_SUMMARY
+
+          echo 'Pytest:' >> $GITHUB_STEP_SUMMARY
+          echo '```python' >> $GITHUB_STEP_SUMMARY
+          pytest . >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        env:
+          DATABASE_URL: "postgresql+asyncpg://user:password@database/db"
+          IPFS_URL: "http://cluster:9094"
+          SECRET: "1234"
