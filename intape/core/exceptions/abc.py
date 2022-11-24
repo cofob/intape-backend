@@ -10,10 +10,12 @@ class AbstractException(Exception, metaclass=ABCMeta):
     All custom exceptions must inherit from this class.
     """
 
+    status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR
+
     def __init__(
         self,
         detail: str | None = None,
-        status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
+        status_code: int | None = None,
         headers: dict[str, str] | None = None,
     ) -> None:
         """Exception init method.
@@ -29,5 +31,6 @@ class AbstractException(Exception, metaclass=ABCMeta):
             super().__init__(detail)
 
         self.detail = detail
-        self.status_code = status_code
         self.headers = headers
+        if status_code is not None:
+            self.status_code = status_code

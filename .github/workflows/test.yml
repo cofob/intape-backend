@@ -8,7 +8,7 @@ on:
   pull_request:
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     container: python:bullseye
 
@@ -42,9 +42,15 @@ jobs:
 
       - name: Install system dependencies
         run: |
+          echo "::group::apt-get update"
           apt-get update
+          echo "::endgroup::"
+          echo "::group::apt-get install"
           apt-get install make sudo gcc -y --no-install-recommends
+          echo "::endgroup::"
+          echo "::group::Install virtualenv"
           sudo -H pip install virtualenv
+          echo "::endgroup::"
 
       - name: Cache req.txt
         uses: actions/cache@v3
@@ -62,9 +68,11 @@ jobs:
       - name: Export poetry dependencies
         if: steps.check_files.outputs.files_exists != 'true'
         run: |
+          echo "::group::Exporting poetry dependencies"
           apt-get install curl -y --no-install-recommends
           curl -sSL "https://install.python-poetry.org" | python
           /github/home/.local/bin/poetry export -o req.txt --without-hashes --with dev
+          echo "::endgroup::"
 
       - name: Cache venv
         uses: actions/cache@v3
@@ -82,9 +90,13 @@ jobs:
       - name: Create virtualenv
         if: steps.check_venv_files.outputs.files_exists != 'true'
         run: |
+          echo "::group::Creating virtualenv"
           virtualenv venv
           . venv/bin/activate
+          echo "::endgroup::"
+          echo "::group::Installing dependencies"
           pip install -r req.txt
+          echo "::endgroup::"
 
       - name: Cache mypy
         uses: actions/cache@v3
@@ -96,48 +108,90 @@ jobs:
             ${{ runner.os }}-mypy-
 
       - name: Run checks
+        continue-on-error: true
         run: |
           . venv/bin/activate
           set -x
 
           python -m intape db migrate
 
-          echo '# Job summary' >> $GITHUB_STEP_SUMMARY
-
-
           echo '## Linting' >> $GITHUB_STEP_SUMMARY
 
           echo 'Flake8:' >> $GITHUB_STEP_SUMMARY
           echo '```python' >> $GITHUB_STEP_SUMMARY
-          flake8 . >> $GITHUB_STEP_SUMMARY
+          flake8 . >> $GITHUB_STEP_SUMMARY || true
           echo '```' >> $GITHUB_STEP_SUMMARY
 
           echo 'Black:' >> $GITHUB_STEP_SUMMARY
           echo '```python' >> $GITHUB_STEP_SUMMARY
-          black . --check --diff >> $GITHUB_STEP_SUMMARY
+          black . --check --diff >> $GITHUB_STEP_SUMMARY || true
           echo '```' >> $GITHUB_STEP_SUMMARY
 
           echo 'Isort:' >> $GITHUB_STEP_SUMMARY
           echo '```python' >> $GITHUB_STEP_SUMMARY
-          isort . -c --diff >> $GITHUB_STEP_SUMMARY
+          isort . -c --diff >> $GITHUB_STEP_SUMMARY || true
           echo '```' >> $GITHUB_STEP_SUMMARY
-
 
           echo '## Type checking' >> $GITHUB_STEP_SUMMARY
 
           echo 'Mypy:' >> $GITHUB_STEP_SUMMARY
           echo '```python' >> $GITHUB_STEP_SUMMARY
-          mypy --install-types --non-interactive . >> $GITHUB_STEP_SUMMARY
+          mypy --install-types --non-interactive . >> $GITHUB_STEP_SUMMARY || true
           echo '```' >> $GITHUB_STEP_SUMMARY
-
 
           echo '## Testing' >> $GITHUB_STEP_SUMMARY
 
           echo 'Pytest:' >> $GITHUB_STEP_SUMMARY
           echo '```python' >> $GITHUB_STEP_SUMMARY
-          pytest . >> $GITHUB_STEP_SUMMARY
+          pytest . >> $GITHUB_STEP_SUMMARY || true
           echo '```' >> $GITHUB_STEP_SUMMARY
+
+          cat $GITHUB_STEP_SUMMARY > summary
         env:
           DATABASE_URL: "postgresql+asyncpg://user:password@database/db"
           IPFS_URL: "http://cluster:9094"
           SECRET: "1234"
+
+      - name: Add PR comment
+        uses: mshick/add-pr-comment@v2
+        with:
+          message-path: summary
+
+      - name: Fail if there are errors
+        run: |
+          . venv/bin/activate
+          make test
+        env:
+          DATABASE_URL: "postgresql+asyncpg://user:password@database/db"
+          IPFS_URL: "http://cluster:9094"
+          SECRET: "1234"
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install flake8 black isort
+
+      - name: Run flake8
+        uses: suo/flake8-github-action@releases/v1
+        with:
+          checkName: "lint" # NOTE: this needs to be the same as the job name
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: psf/black@stable
+        with:
+          options: "--check --verbose"
+          src: "."
+          jupyter: true
+          version: "~= 22.8"
+
+      - uses: isort/isort-action@v1.0.0

@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "InTape social network backend"
 authors = ["SwiftSpark OÜ <collaboration@swiftspark.io>"]
 
+[tool.poetry.scripts]
+intape = "intape.__main__:main"
+
 [tool.poetry.dependencies]
 python = "^3.10"
 
@@ -18,6 +21,7 @@ SQLAlchemy = "^1.4.41" # Database-framework
 asyncpg = "^0.26.0" # Async postgres driver
 alembic = "^1.8.1" # Database migrations
 python-dateutil = "^2.8.2" # Date handling
+pytz = "^2022.6" # Timezone handling
 
 # IPFS
 asyncipfscluster = "^0.1.2" # Async IPFS cluster client
@@ -31,6 +35,10 @@ bcrypt = "^4.0.0" # Password hash function
 
 # CLI
 click = "^8.1.3" # CLI framework
+aiocron = "^1.8"
+
+# Fix greenlet version
+greenlet = "^1"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.8.0" # Code formatter
@@ -42,7 +50,9 @@ SQLAlchemy = {extras = ["mypy"], version = "^1.4.41"} # Mypy SA support
 sqlalchemy2-stubs = "^0.0.2-alpha.27" # SA stubs
 pre-commit = "^2.20.0" # Git pre commit hooks
 pytest = "^7.1.3" # Testing framework
+pytest-cov = "~4.0" # Coverage support for pytest
 pytest-asyncio = "^0.19.0" # Async support for pytest
+pytest-randomly = "~3.12" # Randomize test order
 requests = "^2.28.1" # For FastAPI tests
 faker = "^15.3.2" # For FastAPI tests
 

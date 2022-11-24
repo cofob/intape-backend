@@ -1,62 +1,58 @@
 """Test ping endpoint."""
 
 from hashlib import sha512
+from secrets import token_hex
 
 from faker import Faker
 from fastapi.testclient import TestClient
-from jose import jwt
 
 from intape import app
 
-client = TestClient(app)
-faker = Faker()
+
+def test_get_salt(faker: Faker):
+    """Test get salt endpoint."""
+    client = TestClient(app())
+    username = faker.user_name()[:16]
+
+    response = client.get(f"/v1/auth/get_salt?username={username}")
+    assert response.status_code == 200
+    assert response.json() != ""
 
 
-# For some reason, test with database is not working
-# TODO: Fix tests with database
-# def test_get_salt():
-#     """Test get salt endpoint."""
-#     username = faker.first_name() + faker.last_name()
-#
-#     response = client.get(f"/v1/auth/get_salt?username={username}")
-#     assert response.status_code == 200
-#     assert response.json() != ""
-#
-#
-# def test_register():
-#     """Test register endpoint."""
-#     username = faker.first_name() + faker.last_name()
+def test_register(faker: Faker):
+    """Test register endpoint."""
+    client = TestClient(app())
+    username = faker.user_name()[:16]
 
-#     salt_response = client.get(f"/v1/auth/get_salt?username={username}")
-#     assert salt_response.status_code == 200
-#     salt = salt_response.json()
-#     print(f"Salt: {salt}")
+    salt = token_hex(8)
+    print(f"Salt: {salt}")
 
-#     password = faker.password()
-#     print(f"Password: {password}")
-#     password_hash = sha512(password.encode() + salt.encode()).hexdigest()
+    password = token_hex(8)
+    print(f"Password: {password}")
+    password_hash = sha512(password.encode() + salt.encode()).hexdigest()
 
-#     payload = {
-#         "name": username,
-#         "email": faker.email(),
-#         "password": password_hash,
-#         "client_salt": salt,
-#     }
-#     print(f"Payload: {payload}")
+    payload = {
+        "name": username,
+        "email": faker.email(),
+        "password": password_hash,
+        "client_salt": salt,
+    }
+    print(f"Payload: {payload}")
 
-#     response = client.post(
-#         "/v1/auth/register",
-#         json=payload,
-#     )
-#     print(f"Response: {response.text}")
-#     assert response.status_code == 200
-#     assert response.json() != ""
-#
-#
-# def test_check_username():
-#     """Test check username endpoint."""
-#     username = faker.first_name() + faker.last_name()
+    response = client.post(
+        "/v1/auth/register",
+        json=payload,
+    )
+    print(f"Response: {response.text}")
+    assert response.status_code == 200
+    assert response.json() != ""
 
-#     response = client.get(f"/v1/auth/check_username?username={username}")
-#     assert response.status_code == 200
-#     assert response.json() is True
+
+def test_check_username(faker: Faker):
+    """Test check username endpoint."""
+    client = TestClient(app())
+    username = faker.user_name()[:16]
+
+    response = client.get(f"/v1/auth/check_username?username={username}")
+    assert response.status_code == 200
+    assert type(response.json()) == bool

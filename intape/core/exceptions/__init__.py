@@ -2,13 +2,22 @@
 
 All exceptions must be re-exported in this module.
 """
-from . import handler  # noqa: F401
 from .abc import AbstractException
 from .auth import (
+    AuthenticationRequiredException,
     EmailTakenException,
+    InsufficientPermissionsException,
     InvalidCredentialsException,
+    ReservedUsernameException,
     UsernameTakenException,
+    UserNotFoundException,
 )
+from .file import (
+    FileAlreadyExistsException,
+    FileNotFoundException,
+    UnsupportedMimeTypeException,
+)
+from .other import DatabaseException, IPFSException, NotImplementedException
 from .token import (
     TokenException,
     TokenExpiredException,
@@ -16,6 +25,7 @@ from .token import (
     TokenNotFoundException,
     TokenRevokedException,
 )
+from .video import VideoNotFoundException
 
 __all__ = [
     "AbstractException",
@@ -27,6 +37,20 @@ __all__ = [
     "TokenNotFoundException",
     # Auth exceptions
     "UsernameTakenException",
+    "ReservedUsernameException",
     "EmailTakenException",
     "InvalidCredentialsException",
+    "AuthenticationRequiredException",
+    "UserNotFoundException",
+    "InsufficientPermissionsException",
+    # File exceptions
+    "UnsupportedMimeTypeException",
+    "FileAlreadyExistsException",
+    "FileNotFoundException",
+    # Video exceptions
+    "VideoNotFoundException",
+    # Other exceptions
+    "NotImplementedException",
+    "DatabaseException",
+    "IPFSException",
 ]

@@ -3,21 +3,25 @@
 from calendar import timegm
 from datetime import datetime, timedelta
 from logging import getLogger
-from typing import Type, TypeVar
+from typing import TYPE_CHECKING, Type, TypeVar
 
 from jose import JWTError, jwt
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, select
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from sqlalchemy.orm import relationship
 
-from intape.core.config import CONFIG
+from intape.core.config import Config
 from intape.core.database import Base
 from intape.core.exceptions import (
     TokenInvalidException,
     TokenNotFoundException,
     TokenRevokedException,
 )
-from intape.models import UserModel
+
+from .abc import AbstractModel
+
+if TYPE_CHECKING:
+    from .user import UserModel
 
 logger = getLogger(__name__)
 
@@ -45,7 +49,7 @@ def generate_iat_ts() -> int:
     return timegm(datetime.utcnow().utctimetuple())
 
 
-def encode(data: JSONType) -> str:
+def encode(config: Config, data: JSONType) -> str:
     """Encode provided data to signed JWT token.
 
     Args:
@@ -54,10 +58,10 @@ def encode(data: JSONType) -> str:
     Returns:
         str: JWT string.
     """
-    return jwt.encode(data, CONFIG.SECRET, algorithm=ALGORITHM)  # type: ignore
+    return jwt.encode(data, config.SECRET, algorithm=ALGORITHM)
 
 
-def decode(token: str, options: dict[str, bool] = {}) -> JSONType:
+def decode(config: Config, token: str, options: dict[str, bool] = {}) -> JSONType:
     """Decode JWT token and return its data.
 
     Args:
@@ -73,9 +77,9 @@ def decode(token: str, options: dict[str, bool] = {}) -> JSONType:
     # check globally
     options["verify_jti"] = False
     try:
-        return jwt.decode(  # type: ignore
+        return jwt.decode(
             token,
-            CONFIG.SECRET,
+            config.SECRET,
             algorithms=[ALGORITHM],
             options=options,
         )
@@ -84,21 +88,21 @@ def decode(token: str, options: dict[str, bool] = {}) -> JSONType:
         raise TokenInvalidException(detail="JWT decode/verification error")
 
 
-class UserTokenModel(Base):
+class UserTokenModel(Base, AbstractModel):
     """User token model."""
 
     __tablename__ = "user_tokens"
 
     id: int = Column("id", Integer, primary_key=True, index=True)
     user_id: int = Column("user_id", Integer, ForeignKey("users.id"), nullable=False)
-    user: UserModel = relationship("UserModel")
+    user: "UserModel" = relationship("UserModel", lazy="joined")
     iat: int = Column("iat", Integer, nullable=False, default=generate_iat_ts)
     exp: int = Column("exp", Integer, nullable=False, default=generate_refresh_token_expire_ts)
     session_info: str | None = Column("session_info", String(64), nullable=True)
     revoked: bool = Column("revoked", Boolean, nullable=False, default=False)
 
     @classmethod
-    async def create(
+    async def create_obj(
         cls: Type[T],
         session: Session,
         user_id: int,
@@ -122,7 +126,7 @@ class UserTokenModel(Base):
         await session.commit()
         return user_token
 
-    def issue_refresh_token(self) -> str:
+    def issue_refresh_token(self, config: Config) -> str:
         """Issue refresh token.
 
         Returns:
@@ -134,9 +138,9 @@ class UserTokenModel(Base):
             "exp": self.exp,
             "sub": "refresh",
         }
-        return encode(data)
+        return encode(config, data)
 
-    def issue_access_token(self) -> str:
+    def issue_access_token(self, config: Config) -> str:
         """Issue access token.
 
         Returns:
@@ -148,10 +152,10 @@ class UserTokenModel(Base):
             "exp": generate_access_token_expire_ts(),
             "sub": "access",
         }
-        return encode(data)
+        return encode(config, data)
 
     @classmethod
-    async def get_user_by_access_token(cls, session: Session, token: str) -> UserModel:
+    async def get_user_by_access_token(cls, config: Config, session: Session, token: str) -> "UserModel":
         """Get user by access token.
 
         Args:
@@ -167,7 +171,7 @@ class UserTokenModel(Base):
         Returns:
             UserModel: User model.
         """
-        data = decode(token, options={"verify_exp": True})
+        data = decode(config, token, options={"verify_exp": True})
         if data["sub"] != "access":
             raise TokenInvalidException(detail="Invalid token subject")
         user_token: "UserTokenModel" | None = (
@@ -180,7 +184,7 @@ class UserTokenModel(Base):
         return user_token.user
 
     @classmethod
-    async def issue_new_access_token(cls, session: Session, token: str) -> str:
+    async def issue_new_access_token(cls, config: Config, session: Session, token: str) -> str:
         """Issue new access token.
 
         Args:
@@ -196,7 +200,7 @@ class UserTokenModel(Base):
         Returns:
             str: New access token.
         """
-        data = decode(token, options={"verify_exp": True})
+        data = decode(config, token, options={"verify_exp": True})
         if data["sub"] != "refresh":
             raise TokenInvalidException(detail="Invalid token subject")
         user_token: "UserTokenModel" | None = (
@@ -206,10 +210,10 @@ class UserTokenModel(Base):
             raise TokenNotFoundException(detail="Token not found")
         if user_token.revoked:
             raise TokenRevokedException(detail="Token revoked")
-        return user_token.issue_access_token()
+        return user_token.issue_access_token(config)
 
     @classmethod
-    async def get_by_refresh_token(cls, session: Session, token: str) -> "UserTokenModel":
+    async def get_by_refresh_token(cls, config: Config, session: Session, token: str) -> "UserTokenModel":
         """Get user token by refresh token.
 
         Args:
@@ -225,7 +229,7 @@ class UserTokenModel(Base):
         Returns:
             UserTokenModel: User token model.
         """
-        data = decode(token, options={"verify_exp": True})
+        data = decode(config, token, options={"verify_exp": True})
         if data["sub"] != "refresh":
             raise TokenInvalidException(detail="Invalid token subject")
         user_token: "UserTokenModel" | None = (
@@ -238,7 +242,7 @@ class UserTokenModel(Base):
         return user_token
 
     @classmethod
-    async def get_by_access_token(cls, session: Session, token: str) -> "UserTokenModel":
+    async def get_by_access_token(cls, config: Config, session: Session, token: str) -> "UserTokenModel":
         """Get user token by access token.
 
         Args:
@@ -254,7 +258,7 @@ class UserTokenModel(Base):
         Returns:
             UserTokenModel: User token model.
         """
-        data = decode(token, options={"verify_exp": True})
+        data = decode(config, token, options={"verify_exp": True})
         if data["sub"] != "access":
             raise TokenInvalidException(detail="Invalid token subject")
         user_token: "UserTokenModel" | None = (

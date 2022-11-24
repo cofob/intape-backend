@@ -17,10 +17,18 @@ def run(host: str, port: int, migrate: bool, reload: bool, debug: bool, workers:
     """Run the InTape webserver."""
     if migrate:
         alembic.config.main(argv=["upgrade", "head"])  # type: ignore
-    uvicorn.run("intape:app", host=host, port=port, reload=reload, debug=debug, workers=workers)
+    uvicorn.run(
+        "intape:app",
+        host=host,
+        port=port,
+        reload=reload,
+        debug=debug,
+        workers=workers,
+        factory=True,
+    )
 
 
 @cli.command()
 def dev() -> None:
     """Run the development server."""
-    uvicorn.run("intape:app", host="127.0.0.1", port=8000, reload=True, debug=True, workers=1)
+    uvicorn.run("intape:app", host="127.0.0.1", port=8000, reload=True, debug=True, workers=1, factory=True)

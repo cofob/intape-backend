@@ -1,14 +1,12 @@
 """Default exception handlers for the intape package."""
-from fastapi import Request
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-
-from intape.app import app
 
 from .abc import AbstractException
 
 
-class ErrorModel(BaseModel):
+class ErrorSchema(BaseModel):
     """Error response for AbstractException."""
 
     ok: bool = False
@@ -18,20 +16,23 @@ class ErrorModel(BaseModel):
     detail: str | None = None
 
 
-@app.exception_handler(AbstractException)
-async def abstract_exception_handler(request: Request, exc: AbstractException) -> JSONResponse:
-    """Exception handler for AbstractException.
+def register_exception_handler(app: FastAPI) -> None:
+    """Register exception handlers."""
 
-    Returns:
-        JSON serialized ErrorModel.
-    """
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=ErrorModel(
-            error_code=exc.__class__.__name__,
-            detail=exc.detail if exc.detail is not None else exc.__class__.__doc__,
+    @app.exception_handler(AbstractException)
+    async def abstract_exception_handler(request: Request, exc: AbstractException) -> JSONResponse:
+        """Exception handler for AbstractException.
+
+        Returns:
+            JSON serialized ErrorModel.
+        """
+        return JSONResponse(
             status_code=exc.status_code,
-            error_code_description=exc.__class__.__doc__,
-        ).dict(),
-        headers=exc.headers,
-    )
+            content=ErrorSchema(
+                error_code=exc.__class__.__name__,
+                detail=exc.detail if exc.detail is not None else exc.__class__.__doc__,
+                status_code=exc.status_code,
+                error_code_description=exc.__class__.__doc__,
+            ).dict(),
+            headers=exc.headers,
+        )

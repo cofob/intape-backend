@@ -56,11 +56,11 @@ if [ ! -f /tmp/containers-init ]; then
 			-e CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS="/ip4/0.0.0.0/tcp/9094" \
 			docker.io/ipfs/ipfs-cluster
 
-		echo "Waiting 3 seconds for containers to start..."
-		sleep 3
+		echo "Waiting 5 seconds for containers to start..."
+		sleep 5
 
 		echo "Applying migrations..."
-		alembic upgrade head || true
+		python -m intape db migrate
 	else
 		echo "Container engine not found, skipping environment initialization"
 	fi

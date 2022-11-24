@@ -61,4 +61,4 @@ class TokenNotFoundException(TokenException):
         - Token is not in the database.
     """
 
-    pass
+    status_code = 404

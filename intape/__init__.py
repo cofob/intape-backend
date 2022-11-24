@@ -1,32 +1,12 @@
 """InTape Backend."""
-# Order makes sense here, as the app is created in the first line.
-from .app import app
+from fastapi import FastAPI
 
-# Make some work here, to bypass the isort formatter.
-some = "work"
+from .app import App
 
-from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
-# Import all other modules here.
-from . import (  # noqa: E402
-    core,
-    dependencies,
-    models,
-    routes,
-    schemas,
-    security,
-    utils,
-)
+def app() -> FastAPI:
+    """Return FastAPI application.
 
-__all__ = ["app", "routes", "exceptions", "models", "utils", "schemas", "security", "dependencies", "core"]
-
-app.include_router(routes.router)
-# cors middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-app.add_middleware(core.middlewares.DBAsyncSessionMiddleware)
+    This function is used by Uvicorn to run the application.
+    """
+    return App.from_env().app

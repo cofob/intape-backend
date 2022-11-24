@@ -16,3 +16,7 @@ test: style lint
 format:
 	black .
 	isort .
+
+.PHONY: migration
+migration:
+	alembic revision --autogenerate

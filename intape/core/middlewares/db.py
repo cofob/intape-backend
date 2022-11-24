@@ -2,35 +2,39 @@
 
 import logging
 
-from fastapi import Request, Response, status
+from fastapi import Request, Response
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from starlette.middleware.base import (
     BaseHTTPMiddleware,
     RequestResponseEndpoint,
 )
+from starlette.types import ASGIApp
 
-from intape.core.config import CONFIG
+from intape.core.config import Config
+from intape.core.exceptions import DatabaseException
 
 log = logging.getLogger(__name__)
-engine = create_async_engine(CONFIG.DATABASE_URL)
-async_session_maker = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
 class DBAsyncSessionMiddleware(BaseHTTPMiddleware):
     """Database session middleware."""
 
+    def __init__(self, app: ASGIApp, config: Config) -> None:
+        """Initialize."""
+        super().__init__(app)
+        engine = create_async_engine(config.DATABASE_URL)
+        self.async_session_maker = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         """Dispatch."""
-        response = Response("Internal server error", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
         try:
-            request.state.db = async_session_maker()
-            response = await call_next(request)
-        except Exception as error:
+            request.state.db = self.async_session_maker()
+            return await call_next(request)
+        except SQLAlchemyError as error:
             await request.state.db.rollback()
             log.exception(f"Exception in db. Rolling back. Details: {error}")
+            raise DatabaseException("Database error")
         finally:
             await request.state.db.close()
-
-        return response
