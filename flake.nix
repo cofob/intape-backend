@@ -82,8 +82,8 @@
               # curl "http://localhost:$PORT/v1/ping/"
               # check if answer is "ok"
               # if not, exit 1
-              answer = $(${prev.curl}/bin/curl -s "http://localhost:$PORT/v1/ping/")
-              if [ "$answer" = '"ok"' ]; then
+              export ANSWER=$(${prev.curl}/bin/curl -s "http://localhost:$PORT/v1/ping/")
+              if [ "$ANSWER" = '"ok"' ]; then
                 exit 0
               else
                 exit 1
