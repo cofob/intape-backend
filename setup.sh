@@ -22,7 +22,7 @@ if [ ! -f /tmp/containers-init ]; then
 		echo "Trying docker..."
 		export DOCKER_BIN="docker"
 		$DOCKER_BIN $DOCKER_CHECK &> /dev/null
-		if [ $? == 0 ]; then
+		if [ $? = 0 ]; then
 			export DOCKER_FOUND=1
 		fi
 	fi
@@ -31,12 +31,12 @@ if [ ! -f /tmp/containers-init ]; then
 		echo "Docker not found, trying podman..."
 		export DOCKER_BIN="podman"
 		$DOCKER_BIN $DOCKER_CHECK &> /dev/null
-		if [ $? == 0 ]; then
+		if [ $? = 0 ]; then
 			export DOCKER_FOUND=1
 		fi
 	fi
 
-	if [ $DOCKER_FOUND == 1 ]; then
+	if [ $DOCKER_FOUND = 1 ]; then
 		echo "Using '$DOCKER_BIN' container backend"
 
 		echo "Launching db..."
