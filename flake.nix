@@ -32,6 +32,10 @@
               # migrations
               cp -r $src/migrations $out/intape/migrations
               cp $src/alembic.ini $out/intape/alembic.ini
+              # if "version" file exists, copy it
+              if [ -f $src/version ]; then
+                cp $src/version $out/intape/version
+              fi
             '';
           };
           # The application

@@ -38,6 +38,11 @@ jobs:
         with:
           string: ${{ github.repository }}
 
+      - name: Get git commit hash
+        run: |
+          git rev-parse --short HEAD > version
+          git add version
+
       - name: Build image
         uses: mtoohey31/cache-flake-attrs@v2
         with:
