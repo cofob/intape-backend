@@ -37,8 +37,9 @@ class Worker:
             log.info("Debug mode enabled. Starting all tasks...")
             for cron in self.cron:
                 await cron.func()
-        while True:
-            await sleep(1)
+        else:
+            while True:
+                await sleep(1)
 
     def function_proxy(
         self,

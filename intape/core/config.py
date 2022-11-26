@@ -63,12 +63,13 @@ class Config:
         if ipfs_auth == "undefined":
             IPFS_AUTH = None
         else:
-            spl = ipfs_auth.split(":")
-            IPFS_AUTH = (spl[0], spl[1])
+            i = ipfs_auth.index(":")
+            # black and flake8 disagree on this line
+            IPFS_AUTH = (ipfs_auth[:i], ipfs_auth[i + 1 :])  # noqa: E203
 
-        origins = cls._get_env("ORIGIN", "undefined")
+        origins = cls._get_env("ORIGINS", "undefined")
         if origins == "undefined":
-            log.warning("ORIGIN environment variable is not set. Using default ('*') value.")
+            log.warning("ORIGINS environment variable is not set. Using default ('*') value.")
             ORIGINS = ("*",)
         else:
             ORIGINS = tuple(origins.split(","))  # type: ignore
