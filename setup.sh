@@ -1,3 +1,8 @@
+# Development environment setup script
+#
+# Usage: source setup.sh
+# Unfortunatelly, this script is not supported on Windows.
+
 echo "Setting environment variables for development:"
 export DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/db"
 export IPFS_URL="http://127.0.0.1:9094"
@@ -70,3 +75,6 @@ else
 	echo "Containers already started, skipping..."
 	echo " - (delete '/tmp/containers-init' to force restart them)"
 fi
+
+echo "Activating virtualenv..."
+poetry shell
