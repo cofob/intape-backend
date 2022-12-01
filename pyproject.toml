@@ -39,6 +39,9 @@ eth-account = "^0.7"
 # Fix greenlet version
 greenlet = "^1"
 
+# Install "pkg_resources"
+setuptools = "^65.6.3"
+
 [tool.poetry.group.dev.dependencies]
 black = "^22.8.0" # Code formatter
 mypy = "^0.982" # Static type checking
