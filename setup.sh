@@ -3,12 +3,17 @@
 # Usage: source setup.sh
 # Unfortunatelly, this script is not supported on Windows.
 
+echo "Activating virtualenv..."
+poetry shell
+
 echo "Setting environment variables for development:"
 export DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/db"
 export IPFS_URL="http://127.0.0.1:9094"
+export RPC_URL="https://rpc.ankr.com/polygon_mumbai"
 export SECRET="1234"
 echo " - DATABASE_URL: '$DATABASE_URL'"
 echo " - IPFS_URL: '$IPFS_URL'"
+echo " - RPC_URL: '$RPC_URL'"
 echo " - SECRET: '$SECRET'"
 
 if [ ! -f /tmp/containers-init ]; then
@@ -75,6 +80,3 @@ else
 	echo "Containers already started, skipping..."
 	echo " - (delete '/tmp/containers-init' to force restart them)"
 fi
-
-echo "Activating virtualenv..."
-poetry shell

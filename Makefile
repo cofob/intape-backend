@@ -20,3 +20,15 @@ format:
 .PHONY: migration
 migration:
 	alembic revision --autogenerate
+
+.PHONY: dev
+dev:
+	python -m intape dev
+
+.PHONY: run
+run:
+	python -m intape run
+
+.PHONY: prepare
+prepare:
+	python -m intape db migrate

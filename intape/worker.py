@@ -1,7 +1,7 @@
 """Worker module."""
 import logging
 from asyncio import sleep
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Callable, Coroutine
 
 from aiocron import crontab
@@ -11,9 +11,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from intape.core.config import Config
+from intape.core.rpc import EthClient, InputDecoder
+from intape.core.rpc.erc721_abi import ERC721_ABI
 from intape.dependencies import get_db_deprecated
 from intape.dependencies.ipfs import get_ipfs_instance_deprecated
-from intape.models import FileModel
+from intape.models import FileModel, VideoModel
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +26,11 @@ class Worker:
     def __init__(self, debug: bool = False) -> None:
         """Initialize worker."""
         self.debug = debug
-        self.cron = [crontab("*/2 * * * *", func=self.function_proxy(self.remove_old_files))]
+        self.cron = [
+            crontab("*/10 * * * *", func=self.function_proxy(self.remove_old_files)),
+            crontab("*/1 * * * *", func=self.function_proxy(self.verify_videos)),
+            crontab("0 */12 * * *", func=self.function_proxy(self.delete_unverifed_videos)),
+        ]
         self.config = Config.from_env()
         log.debug("Worker initialized")
 
@@ -54,6 +60,7 @@ class Worker:
         Essential dependencies are:
         - Database session (AsyncSession, first positional argument)
         - IPFS client (IPFSClient, second positional argument)
+        - Ethereum client (EthClient, third positional argument)
 
         Args:
             func (Callable): Function to proxy.
@@ -65,15 +72,16 @@ class Worker:
             try:
                 db = get_db_deprecated(self.config)
                 async with get_ipfs_instance_deprecated(self.config) as ipfs:
-                    log.debug(f"Running task {func.__name__}...")
-                    await func(db, ipfs, *args, **kwargs)
+                    async with EthClient(self.config.RPC_URL) as eth:
+                        log.debug(f"Running task {func.__name__}...")
+                        await func(db, ipfs, eth, *args, **kwargs)
             except Exception as e:
                 log.error(f"Error in function {func.__name__}")
                 log.exception(e)
 
         return function_proxy_inner
 
-    async def remove_old_files(self, db: AsyncSession, ipfs: IPFSClient) -> None:
+    async def remove_old_files(self, db: AsyncSession, ipfs: IPFSClient, _eth: EthClient) -> None:
         """Remove old files."""
         log.info("Removing old files...")
 
@@ -100,3 +108,75 @@ class Worker:
         await db.commit()
 
         log.info(f"Removed {i} files of total {len(files)} scheduled for removal files.")
+
+    async def verify_videos(self, db: AsyncSession, _ipfs: IPFSClient, eth: EthClient) -> None:
+        """Verify videos.
+
+        Verify new videos in blockchain.
+        """
+        log.info("Verifying videos...")
+        query = select(VideoModel).where(VideoModel.is_confirmed == False).where(VideoModel.tx_hash != None)
+        videos: list[VideoModel] = (await db.execute(query)).scalars().all()
+        contract_decoder = InputDecoder(ERC721_ABI)  # type: ignore
+
+        # Verified videos counter
+        i = 0
+
+        for video in videos:
+            try:
+                log.debug(f"Verifying video {video.id}...")
+                if video.tx_hash is None:
+                    continue
+                tx = await eth.get_tx(video.tx_hash)
+                inp = contract_decoder.decode_function(tx.raw_input)
+                if inp.name != "mintNFT":
+                    log.error(f"Transaction {video.tx_hash} is not mintNFT")
+                    continue
+                recipent, token = inp.arguments
+                if recipent[2] != video.user.eth_address:
+                    log.error(f"Transaction {video.tx_hash} is not for user {video.user.eth_address}")
+                    continue
+                if token[2] != video.metadata_cid:
+                    log.error(f"Transaction {video.tx_hash} has wrong metadata CID {token[2]}")
+                    continue
+                video.is_confirmed = True
+                await video.save(db)
+                log.info(f"Verified video {video.id} with transaction {video.tx_hash}")
+                i += 1
+            except Exception as e:
+                log.error(f"Error getting transaction {video.tx_hash}")
+                log.exception(e)
+                continue
+
+        await db.commit()
+
+        log.info(f"Verified {i} videos of total {len(videos)}.")
+
+    async def delete_unverifed_videos(self, db: AsyncSession, ipfs: IPFSClient, _eth: EthClient) -> None:
+        """Delete unverified videos."""
+        log.info("Deleting unverified videos...")
+        query = (
+            select(VideoModel)
+            .where(VideoModel.is_confirmed == False)
+            .where(VideoModel.created_at < datetime.now(tz=UTC) - timedelta(minutes=1))
+        )
+        videos: list[VideoModel] = (await db.execute(query)).scalars().all()
+        i = 0
+        for video in videos:
+            log.debug(f"Deleting video {video.id}...")
+            try:
+                try:
+                    await video.file.remove_all(db, ipfs)
+                except Exception:
+                    log.error(f"Error #1 deleting file {video.file.cid}")
+                await video.remove(db)
+                try:
+                    await video.file.remove_all(db, ipfs)
+                except Exception:
+                    log.error(f"Error #2 deleting file {video.file.cid}")
+            except Exception as e:
+                log.error(f"Error deleting video {video.id}")
+                log.exception(e)
+            i += 1
+        await db.commit()
+        log.info(f"Deleted {i} videos of total {len(videos)}.")

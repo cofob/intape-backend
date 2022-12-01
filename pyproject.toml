@@ -8,34 +8,33 @@ authors = ["SwiftSpark OÜ <collaboration@swiftspark.io>"]
 intape = "intape.__main__:main"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = ">=3.10,<4"
 
 # FastAPI
-fastapi = "^0.85.0" # Web-framework
-pydantic = "^1.10.2" # Serialization-framework
+fastapi = "^0.85" # Web-framework
+pydantic = "^1.10" # Serialization-framework
 python-multipart = "^0.0.5" # Multipart form files handling
-uvicorn = { extras = ["standard"], version = "^0.18.3" } # ASGI web-server
+uvicorn = { extras = ["standard"], version = "^0.18" } # ASGI web-server
 
 # Database
-SQLAlchemy = "^1.4.41" # Database-framework
-asyncpg = "^0.26.0" # Async postgres driver
-alembic = "^1.8.1" # Database migrations
-python-dateutil = "^2.8.2" # Date handling
+SQLAlchemy = "^1.4" # Database-framework
+asyncpg = "^0.26" # Async postgres driver
+alembic = "^1.8" # Database migrations
+python-dateutil = "^2.8" # Date handling
 pytz = "^2022.6" # Timezone handling
 
 # IPFS
-asyncipfscluster = "^0.1.2" # Async IPFS cluster client
+asyncipfscluster = "^0.1" # Async IPFS cluster client
 
 # JWT
 python-jose = "^3.3.0" # JWT handling
 
-# Password hashing
-passlib = "^1.7.4" # Generic password hashing framework
-bcrypt = "^4.0.0" # Password hash function
-
 # CLI
 click = "^8.1.3" # CLI framework
 aiocron = "^1.8"
+
+# Ethereum crypto
+eth-account = "^0.7"
 
 # Fix greenlet version
 greenlet = "^1"

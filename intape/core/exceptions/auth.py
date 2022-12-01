@@ -35,6 +35,15 @@ class EmailTakenException(AuthException):
     pass
 
 
+class EthAddressTakenException(AuthException):
+    """Ethereum address taken exception.
+
+    This exception is used when the Ethereum address is already registred.
+    """
+
+    pass
+
+
 class InvalidCredentialsException(AuthException):
     """Invalid credentials exception.
 

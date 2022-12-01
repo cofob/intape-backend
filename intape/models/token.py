@@ -5,18 +5,24 @@ from datetime import datetime, timedelta
 from logging import getLogger
 from typing import TYPE_CHECKING, Type, TypeVar
 
-from jose import JWTError, jwt
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, select
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    select,
+)
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
 from intape.core.config import Config
 from intape.core.database import Base
-from intape.core.exceptions import (
-    TokenInvalidException,
-    TokenNotFoundException,
-    TokenRevokedException,
-)
+from intape.core.exceptions import TokenNotFoundException, TokenRevokedException
+from intape.schemas.token import AccessTokenSchema, RefreshTokenSchema
+from intape.utils.auth import decode, encode, generate_iat_ts
 
 from .abc import AbstractModel
 
@@ -25,12 +31,9 @@ if TYPE_CHECKING:
 
 logger = getLogger(__name__)
 
-ALGORITHM = "HS256"
 REFRESH_TOKEN_EXPIRE_TIME: dict[str, int] = {"days": 90}
 ACCESS_TOKEN_EXPIRE_TIME: dict[str, int] = {"minutes": 15}
 
-# JWT payload recursive type
-JSONType = dict[str, str | int | float | bool | None | dict[str, "JSONType"] | list["JSONType"]]
 T = TypeVar("T", bound="UserTokenModel")
 
 
@@ -42,50 +45,6 @@ def generate_refresh_token_expire_ts() -> int:
 def generate_access_token_expire_ts() -> int:
     """Get JWT access token expire timestamp."""
     return timegm((datetime.utcnow() + timedelta(**ACCESS_TOKEN_EXPIRE_TIME)).utctimetuple())
-
-
-def generate_iat_ts() -> int:
-    """Get JWT iat field."""
-    return timegm(datetime.utcnow().utctimetuple())
-
-
-def encode(config: Config, data: JSONType) -> str:
-    """Encode provided data to signed JWT token.
-
-    Args:
-        data: JWT data.
-
-    Returns:
-        str: JWT string.
-    """
-    return jwt.encode(data, config.SECRET, algorithm=ALGORITHM)
-
-
-def decode(config: Config, token: str, options: dict[str, bool] = {}) -> JSONType:
-    """Decode JWT token and return its data.
-
-    Args:
-        token: JWT token string.
-
-    Raises:
-        TokenInvalidException: If token is invalid.
-
-    Returns:
-        dict: Parsed JWT data.
-    """
-    # jose raises exception if jti field is not int, so we disable jti
-    # check globally
-    options["verify_jti"] = False
-    try:
-        return jwt.decode(
-            token,
-            config.SECRET,
-            algorithms=[ALGORITHM],
-            options=options,
-        )
-    except JWTError:
-        logger.exception("JWT exception")
-        raise TokenInvalidException(detail="JWT decode/verification error")
 
 
 class UserTokenModel(Base, AbstractModel):
@@ -100,6 +59,8 @@ class UserTokenModel(Base, AbstractModel):
     exp: int = Column("exp", Integer, nullable=False, default=generate_refresh_token_expire_ts)
     session_info: str | None = Column("session_info", String(64), nullable=True)
     revoked: bool = Column("revoked", Boolean, nullable=False, default=False)
+    # If the token was updated last 15 minutes ago, the session is online
+    updated_at: datetime = Column("updated_at", DateTime(timezone=True), onupdate=func.now())
 
     @classmethod
     async def create_obj(
@@ -132,13 +93,15 @@ class UserTokenModel(Base, AbstractModel):
         Returns:
             str: Refresh token.
         """
-        data: JSONType = {
-            "jti": self.id,
-            "iat": self.iat,
-            "exp": self.exp,
-            "sub": "refresh",
-        }
-        return encode(config, data)
+        data = RefreshTokenSchema.parse_obj(
+            {
+                "jti": self.id,
+                "iat": self.iat,
+                "exp": self.exp,
+                "uid": self.user_id,
+            }
+        )
+        return encode(config, data.dict())
 
     def issue_access_token(self, config: Config) -> str:
         """Issue access token.
@@ -146,13 +109,15 @@ class UserTokenModel(Base, AbstractModel):
         Returns:
             str: Access token.
         """
-        data: JSONType = {
-            "jti": self.id,
-            "iat": generate_iat_ts(),
-            "exp": generate_access_token_expire_ts(),
-            "sub": "access",
-        }
-        return encode(config, data)
+        data = AccessTokenSchema.parse_obj(
+            {
+                "jti": self.id,
+                "iat": generate_iat_ts(),
+                "exp": generate_access_token_expire_ts(),
+                "uid": self.user_id,
+            }
+        )
+        return encode(config, data.dict())
 
     @classmethod
     async def get_user_by_access_token(cls, config: Config, session: Session, token: str) -> "UserModel":
@@ -172,10 +137,9 @@ class UserTokenModel(Base, AbstractModel):
             UserModel: User model.
         """
         data = decode(config, token, options={"verify_exp": True})
-        if data["sub"] != "access":
-            raise TokenInvalidException(detail="Invalid token subject")
+        schema = AccessTokenSchema.parse_obj(data)
         user_token: "UserTokenModel" | None = (
-            (await session.execute(select(cls).where(cls.id == data["jti"]))).scalars().first()
+            (await session.execute(select(cls).where(cls.id == schema.jti))).scalars().first()
         )
         if user_token is None:
             raise TokenNotFoundException(detail="Token not found")
@@ -201,10 +165,9 @@ class UserTokenModel(Base, AbstractModel):
             str: New access token.
         """
         data = decode(config, token, options={"verify_exp": True})
-        if data["sub"] != "refresh":
-            raise TokenInvalidException(detail="Invalid token subject")
+        schema = RefreshTokenSchema.parse_obj(data)
         user_token: "UserTokenModel" | None = (
-            (await session.execute(select(cls).where(cls.id == data["jti"]))).scalars().first()
+            (await session.execute(select(cls).where(cls.id == schema.jti))).scalars().first()
         )
         if user_token is None:
             raise TokenNotFoundException(detail="Token not found")
@@ -230,10 +193,9 @@ class UserTokenModel(Base, AbstractModel):
             UserTokenModel: User token model.
         """
         data = decode(config, token, options={"verify_exp": True})
-        if data["sub"] != "refresh":
-            raise TokenInvalidException(detail="Invalid token subject")
+        schema = RefreshTokenSchema.parse_obj(data)
         user_token: "UserTokenModel" | None = (
-            (await session.execute(select(cls).where(cls.id == data["jti"]))).scalars().first()
+            (await session.execute(select(cls).where(cls.id == schema.jti))).scalars().first()
         )
         if user_token is None:
             raise TokenNotFoundException(detail="Token not found")
@@ -259,10 +221,9 @@ class UserTokenModel(Base, AbstractModel):
             UserTokenModel: User token model.
         """
         data = decode(config, token, options={"verify_exp": True})
-        if data["sub"] != "access":
-            raise TokenInvalidException(detail="Invalid token subject")
+        schema = AccessTokenSchema.parse_obj(data)
         user_token: "UserTokenModel" | None = (
-            (await session.execute(select(cls).where(cls.id == data["jti"]))).scalars().first()
+            (await session.execute(select(cls).where(cls.id == schema.jti))).scalars().first()
         )
         if user_token is None:
             raise TokenNotFoundException(detail="Token not found")

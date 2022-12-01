@@ -1,17 +1,16 @@
 """Video schemas."""
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from . import fields as f
+from .abc import BaseSchema
 
-from .user import PublicUserSchema
 
-
-class BaseVideoSchema(BaseModel):
+class BaseVideoSchema(BaseSchema):
     """Base video schema."""
 
-    description: str = Field(description="Video description.", max_length=150, min_length=3)
-    tags: list[str] = Field(description="Video tags.", max_length=16, min_length=1)
-    file_cid: str = Field(description="Video file CID.", max_length=128, min_length=10)
+    description: str = f.VIDEO_DESCRIPTION
+    tags: list[str] = f.VIDEO_TAGS
+    file_cid: str = f.IPFS_CID
 
 
 class CreateVideoSchema(BaseVideoSchema):
@@ -23,11 +22,15 @@ class CreateVideoSchema(BaseVideoSchema):
 class VideoSchema(BaseVideoSchema):
     """Video schema."""
 
-    id: int = Field(description="Video ID.")
-    created_at: datetime = Field(description="Video creation date.")
-    user: PublicUserSchema = Field(description="Video author.")
+    id: int = f.VIDEO_ID
+    created_at: datetime = f.CREATED_AT
+    user_id: int = f.USER_ID
+    metadata_cid: str = f.IPFS_PATH
 
-    class Config:
-        """Config."""
 
-        orm_mode = True
+class VideoMetadataSchema(BaseSchema):
+    """Video metadata schema."""
+
+    description: str = f.VIDEO_DESCRIPTION
+    name: str = f.VIDEO_DESCRIPTION
+    image: str = f.IPFS_PATH

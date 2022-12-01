@@ -87,6 +87,6 @@ class FileModel(Base, AbstractModel):
             db (AsyncSession): Database session.
             ipfs (IPFSClient): IPFS client.
         """
-        await ipfs.remove(self.cid)
         await db.delete(self)
         await db.commit()
+        await ipfs.remove(self.cid)

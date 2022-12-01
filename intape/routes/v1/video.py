@@ -1,6 +1,8 @@
 """Video endpoint."""
-from fastapi import APIRouter, Depends, Request
+from asyncipfscluster import IPFSClient
+from fastapi import APIRouter, Body, Depends, Request
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from intape.core.exceptions import (
     FileNotFoundException,
@@ -8,9 +10,9 @@ from intape.core.exceptions import (
     UnsupportedMimeTypeException,
     VideoNotFoundException,
 )
-from intape.dependencies import get_current_user
+from intape.dependencies import get_current_user, get_db, get_ipfs
 from intape.models import FileModel, UserModel, VideoModel
-from intape.schemas import CreateVideoSchema, VideoSchema
+from intape.schemas.video import CreateVideoSchema, VideoSchema
 
 router = APIRouter(tags=["video"], prefix="/video")
 
@@ -36,7 +38,11 @@ async def get_videos(
 
 @router.post("/", response_model=VideoSchema)
 async def create_video(
-    *, request: Request, user: UserModel = Depends(get_current_user), video: CreateVideoSchema
+    *,
+    db: AsyncSession = Depends(get_db),
+    ipfs: IPFSClient = Depends(get_ipfs),
+    user: UserModel = Depends(get_current_user),
+    video: CreateVideoSchema,
 ) -> VideoSchema:
     """Create video.
 
@@ -49,8 +55,6 @@ async def create_video(
     Returns:
     - VideoSchema: Created video.
     """
-    db = request.state.db
-
     # Get file
     query = select(FileModel).where(FileModel.cid == video.file_cid)
     file: FileModel | None = (await db.execute(query)).scalars().first()
@@ -61,6 +65,7 @@ async def create_video(
 
     # Create video
     db_video = VideoModel(**video.dict(), user_id=user.id)
+    db_video.metadata_cid = await db_video.get_metadata_cid(db, ipfs)
 
     # Save file
     file.remove_at = None
@@ -73,10 +78,48 @@ async def create_video(
     # Get video from database.
     # SA for some reason doesn't return the video correctly and
     # raises greenlet error with the user relation.
-    query = select(VideoModel).filter_by(id=db_video.id)
-    db_video = (await db.execute(query)).scalars().first()
+    db_video: VideoModel | None = await VideoModel.get(db, db_video.id)
+    if not db_video:
+        raise VideoNotFoundException(detail="Video was not created.")
 
     return VideoSchema.from_orm(db_video)
+
+
+@router.post("/{video_id}/set_tx", response_model=bool)
+async def set_video_tx(
+    *,
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(get_current_user),
+    video_id: int,
+    tx_hash: str = Body(embed=True),
+) -> bool:
+    """Set video transaction hash.
+
+    Returns:
+    - bool: True if the video was updated. False if the video already has a transaction hash.
+
+    Raises:
+    - VideoNotFoundException: If the video is not found.
+    - InsufficientPermissionsException: If the user is not the owner of the video.
+    """
+    # Get video
+    db_video: VideoModel | None = await VideoModel.get(db, video_id)
+    if not db_video:
+        raise VideoNotFoundException()
+
+    # Check permissions
+    if db_video.user_id != user.id:
+        raise InsufficientPermissionsException()
+
+    # Check if tx hash is already set
+    if db_video.tx_hash:
+        return False
+
+    # Set tx hash
+    db_video.tx_hash = tx_hash
+    await db_video.save(db)
+
+    return True
 
 
 @router.get("/{video_id}", response_model=VideoSchema)
@@ -102,10 +145,12 @@ async def get_video(*, request: Request, video_id: int) -> VideoSchema:
 
 
 @router.delete("/{video_id}", response_model=bool)
-async def delete_video(*, request: Request, user: UserModel = Depends(get_current_user), video_id: int) -> bool:
-    """Delete video.
+async def hide_video(*, request: Request, user: UserModel = Depends(get_current_user), video_id: int) -> bool:
+    """Hide video.
 
-    Delete a video by ID.
+    Hide a video by ID. Video can't be deleted, only hidden (because of the IPFS & blockchain).
+
+    This action is irreversible.
 
     Raises:
     - VideoNotFoundException: If the video is not found or is deleted.
@@ -120,7 +165,7 @@ async def delete_video(*, request: Request, user: UserModel = Depends(get_curren
     if not video:
         raise VideoNotFoundException()
     if video.user_id != user.id:
-        raise InsufficientPermissionsException(detail="You can only delete your own videos.")
+        raise InsufficientPermissionsException(detail="You can only hide your own videos.")
     video.is_deleted = True
     db.add(video)
     await db.commit()

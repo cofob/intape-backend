@@ -6,6 +6,7 @@ from .abc import AbstractException
 from .auth import (
     AuthenticationRequiredException,
     EmailTakenException,
+    EthAddressTakenException,
     InsufficientPermissionsException,
     InvalidCredentialsException,
     ReservedUsernameException,
@@ -43,6 +44,7 @@ __all__ = [
     "AuthenticationRequiredException",
     "UserNotFoundException",
     "InsufficientPermissionsException",
+    "EthAddressTakenException",
     # File exceptions
     "UnsupportedMimeTypeException",
     "FileAlreadyExistsException",

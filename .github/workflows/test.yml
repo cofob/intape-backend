@@ -10,7 +10,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    container: python:bullseye
+    container: python:3.10-bullseye
 
     services:
       database:
@@ -151,6 +151,7 @@ jobs:
           DATABASE_URL: "postgresql+asyncpg://user:password@database/db"
           IPFS_URL: "http://cluster:9094"
           SECRET: "1234"
+          RPC_URL: "https://rpc.ankr.com/polygon_mumbai"
 
       - name: Add PR comment
         uses: mshick/add-pr-comment@v2
@@ -165,3 +166,4 @@ jobs:
           DATABASE_URL: "postgresql+asyncpg://user:password@database/db"
           IPFS_URL: "http://cluster:9094"
           SECRET: "1234"
+          RPC_URL: "https://rpc.ankr.com/polygon_mumbai"

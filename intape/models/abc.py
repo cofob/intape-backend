@@ -99,7 +99,7 @@ class AbstractModel:
 
     @classmethod
     async def get_list_by_keys(
-        *, cls: t.Type[T], db: AsyncSession, limit: int = 0, offset: int = 0, **kwargs: t.Any
+        cls: t.Type[T], db: AsyncSession, *, limit: int = 0, offset: int = 0, **kwargs: t.Any
     ) -> list[T]:
         """Get a list of models by multiple keys."""
         query = select(cls).filter_by(**kwargs).offset(offset).limit(limit)

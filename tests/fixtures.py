@@ -1,9 +1,10 @@
 """Fixtures for tests."""
 
-from hashlib import sha512
 from secrets import token_hex
 
 import pytest
+from eth_account import Account
+from eth_account.messages import encode_defunct
 from fastapi.testclient import TestClient
 
 from intape import app
@@ -12,37 +13,58 @@ from intape import app
 @pytest.fixture(scope="session")
 def username() -> str:
     """Return a random username."""
-    return token_hex(3)
+    return "T" + token_hex(3)
 
 
 @pytest.fixture(scope="session")
-def salt() -> str:
-    """Return a random salt."""
-    return token_hex(8)
+def eth_account() -> Account:
+    """Return a random eth account."""
+    return Account.create()
 
 
 @pytest.fixture(scope="session")
-def password() -> str:
-    """Return a random password."""
-    return token_hex(8)
+def address(eth_account: Account) -> str:
+    """Return a random address."""
+    return eth_account.address.lower()
 
 
 @pytest.fixture(scope="session")
-def password_hash(password: str, salt: str) -> str:
-    """Return a random password hash."""
-    return sha512(password.encode() + salt.encode()).hexdigest()
+def confirmation_jwt_data(address: str) -> dict[str, str]:
+    """Return a confirmation JWT."""
+    client = TestClient(app())
+    response = client.post("/v1/auth/request_confirmation", json={"eth_address": address})
+    return response.json()
+
+
+@pytest.fixture(scope="session")
+def confirmation_jwt(confirmation_jwt_data: dict[str, str]) -> str:
+    """Return a confirmation JWT."""
+    return confirmation_jwt_data["confirmation_jwt"]
+
+
+@pytest.fixture(scope="session")
+def confirmation_jwt_text(confirmation_jwt_data: dict[str, str]) -> str:
+    """Return a confirmation JWT."""
+    return confirmation_jwt_data["data"]
+
+
+@pytest.fixture(scope="session")
+def signature(eth_account: Account, confirmation_jwt_text: str) -> str:
+    """Return a signature."""
+    message = encode_defunct(text=confirmation_jwt_text)
+    return eth_account.sign_message(message).signature.hex()
 
 
 @pytest.fixture(scope="session", autouse=True)
-def tokens(username: str, password_hash: str, salt: str) -> tuple[str, str]:
+def tokens(username: str, confirmation_jwt: str, address: str, signature: str) -> tuple[str, str]:
     """Register user."""
     client = TestClient(app())
 
     payload = {
-        "name": username,
-        "email": f"{token_hex(6)}@example.com",
-        "password": password_hash,
-        "client_salt": salt,
+        "username": username,
+        "eth_address": address,
+        "confirmation_jwt": confirmation_jwt,
+        "signature": signature,
     }
     print(f"Payload: {payload}")
 

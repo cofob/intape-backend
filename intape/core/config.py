@@ -32,6 +32,8 @@ class Config:
     DATABASE_URL: str
     IPFS_URL: str
     SECRET: str
+    RPC_URL: str
+    CONTRACT_ADDRESS: str = "0xe67bf587f00afdd30a564fe9a436ecf8845a6829"
     IPFS_AUTH: tuple[str, str] | None = None
     ORIGINS: tuple[str, ...] = ("*",)
 
@@ -74,10 +76,19 @@ class Config:
         else:
             ORIGINS = tuple(origins.split(","))  # type: ignore
 
+        contract_address = cls._get_env("CONTRACT_ADDRESS", "undefined")
+        if contract_address == "undefined":
+            log.warning("CONTRACT_ADDRESS environment variable is not set. Using default value.")
+            CONTRACT_ADDRESS = "0xe67bf587f00afdd30a564fe9a436ecf8845a6829"
+        else:
+            CONTRACT_ADDRESS = contract_address
+
         return cls(
             DATABASE_URL=cls._get_env("DATABASE_URL"),
             IPFS_URL=cls._get_env("IPFS_URL"),
             IPFS_AUTH=IPFS_AUTH,
+            CONTRACT_ADDRESS=CONTRACT_ADDRESS,
+            RPC_URL=cls._get_env("RPC_URL"),
             SECRET=cls._get_env("SECRET"),
             ORIGINS=ORIGINS,
         )

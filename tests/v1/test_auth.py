@@ -8,48 +8,24 @@ from tests.checks import is_jwt
 from tests.fixtures import *
 
 
-def test_get_salt(username: str):
-    """Test get salt endpoint."""
-    client = TestClient(app())
-    response = client.get(f"/v1/auth/get_salt?username={username}")
-    assert response.status_code == 200
-    assert response.json() != ""
-
-
 def test_register(access_token: str):
     """Test register endpoint."""
     assert is_jwt(access_token)
 
 
-def test_login(username: str, password_hash: str):
+def test_login(signature: str, confirmation_jwt: str):
     """Test login endpoint."""
     client = TestClient(app())
 
     payload = {
-        "name": username,
-        "password": password_hash,
+        "confirmation_jwt": confirmation_jwt,
+        "signature": signature,
     }
     print(f"Payload: {payload}")
     response = client.post("/v1/auth/login", json=payload)
     print(f"Response: {response.text}")
     assert response.status_code == 200
     assert response.json()["access_token"] != ""
-    assert is_jwt(response.json()["access_token"])
-
-
-def test_simple_login(username: str, password: str):
-    """Test simple login endpoint."""
-    client = TestClient(app())
-
-    payload = {
-        "username": username,
-        "password": password,
-    }
-    print(f"Payload: {payload}")
-    # Send request with payload in form data
-    response = client.post("/v1/auth/simple_login", data=payload)
-    print(f"Response: {response.text}")
-    assert response.status_code == 200
     assert is_jwt(response.json()["access_token"])
 
 
@@ -77,7 +53,7 @@ def test_valid_auth(access_token: str, username: str):
     client = TestClient(app())
     response = client.get("/v1/auth/check_auth", headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 200
-    assert response.json()["name"] == username
+    assert response.json()["username"] == username
 
 
 def test_invalid_auth():
