@@ -35,6 +35,7 @@ aiocron = "^1.8"
 
 # Ethereum crypto
 eth-account = "^0.7"
+eth-hash = "^0.5"
 
 # Fix greenlet version
 greenlet = "^1"
