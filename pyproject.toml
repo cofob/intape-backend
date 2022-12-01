@@ -40,7 +40,7 @@ eth-account = "^0.7"
 greenlet = "^1"
 
 # Install "pkg_resources"
-setuptools = "^65.6.3"
+setuptools = ">60,<70"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.8.0" # Code formatter
