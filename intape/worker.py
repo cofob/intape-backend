@@ -1,7 +1,7 @@
 """Worker module."""
 import logging
 from asyncio import sleep
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Callable, Coroutine
 
 from aiocron import crontab
@@ -29,7 +29,6 @@ class Worker:
         self.cron = [
             crontab("*/10 * * * *", func=self.function_proxy(self.remove_old_files)),
             crontab("*/1 * * * *", func=self.function_proxy(self.verify_videos)),
-            crontab("0 */12 * * *", func=self.function_proxy(self.delete_unverifed_videos)),
         ]
         self.config = Config.from_env()
         log.debug("Worker initialized")
@@ -151,32 +150,3 @@ class Worker:
         await db.commit()
 
         log.info(f"Verified {i} videos of total {len(videos)}.")
-
-    async def delete_unverifed_videos(self, db: AsyncSession, ipfs: IPFSClient, _eth: EthClient) -> None:
-        """Delete unverified videos."""
-        log.info("Deleting unverified videos...")
-        query = (
-            select(VideoModel)
-            .where(VideoModel.is_confirmed == False)
-            .where(VideoModel.created_at < datetime.now(tz=UTC) - timedelta(minutes=1))
-        )
-        videos: list[VideoModel] = (await db.execute(query)).scalars().all()
-        i = 0
-        for video in videos:
-            log.debug(f"Deleting video {video.id}...")
-            try:
-                try:
-                    await video.file.remove_all(db, ipfs)
-                except Exception:
-                    log.error(f"Error #1 deleting file {video.file.cid}")
-                await video.remove(db)
-                try:
-                    await video.file.remove_all(db, ipfs)
-                except Exception:
-                    log.error(f"Error #2 deleting file {video.file.cid}")
-            except Exception as e:
-                log.error(f"Error deleting video {video.id}")
-                log.exception(e)
-            i += 1
-        await db.commit()
-        log.info(f"Deleted {i} videos of total {len(videos)}.")

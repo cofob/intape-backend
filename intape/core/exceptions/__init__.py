@@ -13,6 +13,11 @@ from .auth import (
     UsernameTakenException,
     UserNotFoundException,
 )
+from .collection import (
+    CollectionEntryAlreadyExists,
+    CollectionEntryNotFound,
+    CollectionNotFound,
+)
 from .file import (
     FileAlreadyExistsException,
     FileNotFoundException,
@@ -26,7 +31,11 @@ from .token import (
     TokenNotFoundException,
     TokenRevokedException,
 )
-from .video import VideoNotFoundException
+from .video import (
+    VideoNotConfirmedException,
+    VideoNotFoundException,
+    VideoNotYetConfirmedException,
+)
 
 __all__ = [
     "AbstractException",
@@ -51,6 +60,12 @@ __all__ = [
     "FileNotFoundException",
     # Video exceptions
     "VideoNotFoundException",
+    "VideoNotConfirmedException",
+    "VideoNotYetConfirmedException",
+    # Collection exceptions
+    "CollectionNotFound",
+    "CollectionEntryNotFound",
+    "CollectionEntryAlreadyExists",
     # Other exceptions
     "NotImplementedException",
     "DatabaseException",

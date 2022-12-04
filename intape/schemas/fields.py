@@ -73,6 +73,16 @@ VIDEO_DESCRIPTION: str = Field(description="Video description.", max_length=150,
 
 VIDEO_TAGS: list[str] = Field(description="Video tags.", max_length=16, min_length=1)
 
+COLLECTION_ID: int = Field(description="Collection ID.", ge=0)
+
+COLLECTION_NAME: str = Field(description="Collection name.", max_length=32, min_length=3)
+
+COLLECTION_DESCRIPTION: str = Field(description="Collection description.", max_length=150, min_length=3)
+
+COLLECTION_IS_PUBLIC: bool = Field(description="Is collection public and can be updated by anyone.")
+
+COLLECTION_ENTRY_ID: int = Field(description="Collection entry ID.", ge=0)
+
 CREATED_AT: datetime = Field(description="Created at timestamp.")
 
 UPDATED_AT: datetime = Field(description="Updated at timestamp.")
