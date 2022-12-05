@@ -25,7 +25,7 @@ if isfile("version"):
     except Exception:
         pass
 
-VERSION = "0.1.0" + (f"-{VERSION}" if VERSION else "")
+VERSION = "0.2.1" + (f"-{VERSION}" if VERSION else "")
 
 
 class App:
