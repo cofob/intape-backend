@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+
+    volumes:
+      - ../..:/workspaces:cached
+
+    command: sleep infinity
+
+    depends_on:
+      - db
+      - cluster
+
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://user:password@db/db"
+      IPFS_URL: "http://cluster:9094"
+      RPC_URL: "https://rpc.ankr.com/polygon_mumbai"
+      SECRET: "1234"
+
+    networks:
+      - default
+
+  db:
+    image: postgres:latest
+
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_DB: db
+      POSTGRES_PASSWORD: password
+      
+    networks:
+      - default
+
+  ipfs:
+    image: ipfs/kubo
+
+    networks:
+      - default
+
+  cluster:
+    image: ipfs/ipfs-cluster
+
+    environment:
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: "/ip4/0.0.0.0/tcp/9094"
+      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: "/dns/ipfs/tcp/5001"
+
+    depends_on:
+      - ipfs
+
+    networks:
+      - default
+
+networks:
+  default:

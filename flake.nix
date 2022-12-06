@@ -138,7 +138,6 @@
             poetry
             gcc
           ];
-          shellHook = "source setup.sh";
         };
       }));
 }

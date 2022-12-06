@@ -1,0 +1,6 @@
+{
+  "python.linting.pydocstyleEnabled": true,
+  "python.linting.mypyEnabled": true,
+  "python.linting.pylintEnabled": false,
+  "python.defaultInterpreterPath": "{{PYTHON_VENV_BIN}}"
+}

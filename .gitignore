@@ -7,6 +7,10 @@ logs.txt
 # Nix
 result
 
+# IDE workspace settings
+.vscode
+.idea
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
