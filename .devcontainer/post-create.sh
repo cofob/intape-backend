@@ -17,4 +17,8 @@ export PYTHON_VENV="$(poetry show -v 2> /dev/null | head -n1 | cut -d ' ' -f 3)"
 export PYTHON_VENV_BIN="$PYTHON_VENV/bin/python"
 sed -i "s|{{PYTHON_VENV_BIN}}|$PYTHON_VENV_BIN|g" .vscode/settings.json
 
+# Apply database migrations
+echo "Applying database migrations..."
+poetry run python -m intape db migrate || true
+
 echo "Done!"
