@@ -7,7 +7,7 @@ if [ "$MODE" = "server" ]; then
   # curl "http://localhost:$PORT/v1/ping/"
   # check if answer is "ok"
   # if not, exit 1
-  export ANSWER=$(${prev.curl}/bin/curl -s "http://localhost:$PORT/v1/ping/")
+  export ANSWER=$(curl -s "http://localhost:$PORT/v1/ping/")
   if [ "$ANSWER" = '"ok"' ]; then
     exit 0
   else
