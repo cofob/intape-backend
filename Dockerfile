@@ -5,15 +5,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 		&& rm -rf /var/lib/apt/lists/*
 
 
-# Export requirements.txt from poetry
-FROM base AS deps
-
-COPY poetry.lock pyproject.toml ./
-
-RUN curl -sSL https://install.python-poetry.org | python3 -
-RUN /root/.local/bin/poetry export --without-hashes -o /requirements.txt
-
-
 # Copy source code
 FROM scratch as source
 
@@ -30,10 +21,11 @@ WORKDIR /app
 
 ENV PORT=8000 HOST=0.0.0.0 WORKERS=1
 
-COPY --from=deps /requirements.txt ./
-RUN pip install -r requirements.txt
+COPY requirements.txt /requirements.txt
+RUN pip install -r /requirements.txt && rm /requirements.txt
+COPY .docker/entrypoint.sh .docker/healthcheck.sh /bin/
 COPY --from=source / /app
 
-HEALTHCHECK CMD curl --fail http://localhost:$PORT/v1/ping/ || exit 1
+HEALTHCHECK CMD /bin/healthcheck.sh
 
-CMD ["bash", "-c", "python3 -m intape run -m -w $WORKERS -p $PORT -h $HOST"]
+ENTRYPOINT ["/bin/entrypoint.sh"]
