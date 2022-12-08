@@ -19,7 +19,7 @@ FROM base AS final
 
 WORKDIR /app
 
-ENV PORT=8000 HOST=0.0.0.0 WORKERS=1
+ENV PORT=8000 HOST=0.0.0.0 WORKERS=1 MODE=server
 
 COPY requirements.txt /requirements.txt
 RUN pip install -r /requirements.txt && rm /requirements.txt
