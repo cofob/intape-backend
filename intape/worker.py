@@ -1,10 +1,11 @@
 """Worker module."""
 import logging
-from asyncio import sleep
+from asyncio import create_task, sleep
+from dataclasses import dataclass
 from datetime import datetime
+from time import time
 from typing import Any, Callable, Coroutine
 
-from aiocron import crontab
 from asyncipfscluster import IPFSClient
 from pytz import UTC
 from sqlalchemy import select
@@ -20,31 +21,55 @@ from intape.models import FileModel, VideoModel
 log = logging.getLogger(__name__)
 
 
+@dataclass
+class Cron:
+    """Cron class."""
+
+    func: Callable[..., Coroutine[Any, Any, None]]
+    every: float | int
+    current: int = 0
+
+
 class Worker:
     """Worker class."""
 
     def __init__(self, debug: bool = False) -> None:
         """Initialize worker."""
+        self.task_counter = 0
         self.debug = debug
         self.cron = [
-            crontab("*/10 * * * *", func=self.function_proxy(self.remove_old_files)),
-            crontab("*/1 * * * *", func=self.function_proxy(self.verify_videos)),
+            Cron(self.function_proxy(self.verify_videos), every=30),
+            Cron(self.function_proxy(self.remove_old_files), every=60 * 5),
         ]
+        self.interval = 5
         self.config = Config.from_env()
         log.debug("Worker initialized")
 
     async def run(self) -> None:
         """Run worker."""
-        for cron in self.cron:
-            cron.start()
         log.info("Worker started scheduled tasks.")
+        # Prepare tasks
+        for cron in self.cron:
+            if cron.every % self.interval != 0:
+                old = cron.every
+                cron.every = cron.every - (cron.every % self.interval) + self.interval
+                log.warning("Interval is not a divisor of every. Fixing from %s to %s", old, cron.every)
         if self.debug:
             log.info("Debug mode enabled. Starting all tasks...")
             for cron in self.cron:
                 await cron.func()
         else:
             while True:
-                await sleep(1)
+                for cron in self.cron:
+                    diff = cron.every / self.interval
+                    log.debug(f"Current: {cron.current}, every: {cron.every}, interval: {self.interval}, diff: {diff}")
+                    if cron.current >= diff:
+                        create_task(cron.func())
+                        cron.current = 0
+                    else:
+                        cron.current += 1
+                log.debug(f"Sleeping for {self.interval} seconds...")
+                await sleep(self.interval)
 
     def function_proxy(
         self,
@@ -68,22 +93,32 @@ class Worker:
         """
 
         async def function_proxy_inner() -> None:
+            task_id = self.task_counter
+            self.task_counter += 1
             try:
                 db = get_db_deprecated(self.config)
                 async with get_ipfs_instance_deprecated(self.config) as ipfs:
                     async with EthClient(self.config.RPC_URL) as eth:
-                        log.debug(f"Running task {func.__name__}...")
+                        log.info(f"Running task {func.__name__}#{task_id}...")
+                        start_time = time()
                         await func(db, ipfs, eth, *args, **kwargs)
+                        elapsed_time = time() - start_time
+
+                        if elapsed_time > self.interval:
+                            log.warning(
+                                f"Task {func.__name__}#{task_id} took {elapsed_time} seconds, but it should take"
+                                + f"less than {self.interval} seconds. Increase interval or split task."
+                            )
+                        else:
+                            log.debug(f"Task {func.__name__}#{task_id} took {elapsed_time} seconds.")
             except Exception as e:
-                log.error(f"Error in function {func.__name__}")
+                log.error(f"Error in task {func.__name__}#{task_id}")
                 log.exception(e)
 
         return function_proxy_inner
 
     async def remove_old_files(self, db: AsyncSession, ipfs: IPFSClient, _eth: EthClient) -> None:
         """Remove old files."""
-        log.info("Removing old files...")
-
         query = select(FileModel).where(FileModel.remove_at is not None)
         files: list[FileModel] = (await db.execute(query)).scalars().all()
 
@@ -113,7 +148,6 @@ class Worker:
 
         Verify new videos in blockchain.
         """
-        log.info("Verifying videos...")
         query = select(VideoModel).where(VideoModel.is_confirmed == False).where(VideoModel.tx_hash != None)
         videos: list[VideoModel] = (await db.execute(query)).scalars().all()
         contract_decoder = InputDecoder(ERC721_ABI)  # type: ignore

@@ -31,7 +31,6 @@ python-jose = "^3.3.0" # JWT handling
 
 # CLI
 click = "^8.1.3" # CLI framework
-aiocron = "^1.8"
 
 # Ethereum crypto
 eth-account = "^0.7"
