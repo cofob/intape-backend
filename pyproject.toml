@@ -11,7 +11,7 @@ intape = "intape.__main__:main"
 python = ">=3.10,<4"
 
 # FastAPI
-fastapi = "^0.85" # Web-framework
+fastapi = "^0.109" # Web-framework
 pydantic = "^1.10" # Serialization-framework
 python-multipart = "^0.0.5" # Multipart form files handling
 uvicorn = { extras = ["standard"], version = "^0.18" } # ASGI web-server
