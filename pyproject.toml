@@ -43,7 +43,7 @@ greenlet = "^1"
 setuptools = ">60,<70"
 
 [tool.poetry.group.dev.dependencies]
-black = "^22.8.0" # Code formatter
+black = "^24.3.0" # Code formatter
 mypy = "^0.982" # Static type checking
 isort = "^5.10.1" # Import sorting
 flake8 = "^5.0.4" # Linter
