@@ -1,3 +1,5 @@
+> **Archival notice:** This repository is archived and no longer maintained.
+
 # InTape backend
 
 My old freelance project (made in 2022). Realizes backend for web3 nft social network InTape.
